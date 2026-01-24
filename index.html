@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Return on Ad Spend Chart</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background-color: #fff;
+            padding: 40px;
+        }
+
+        .chart-container {
+            width: 100%;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .chart-title {
+            font-size: 16px;
+            font-weight: normal;
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .chart-wrapper {
+            position: relative;
+            width: 100%;
+        }
+
+        .y-label {
+            position: absolute;
+            left: 0;
+            font-size: 14px;
+            color: #333;
+        }
+
+        svg {
+            display: block;
+            overflow: visible;
+        }
+
+        .data-label {
+            font-size: 14px;
+            fill: #333;
+            text-anchor: middle;
+        }
+
+        .x-label {
+            font-size: 14px;
+            fill: #666;
+            text-anchor: middle;
+        }
+
+        .grid-line {
+            stroke: #e0e0e0;
+            stroke-width: 1;
+        }
+
+        .threshold-line {
+            stroke: #333;
+            stroke-width: 1;
+        }
+
+        .data-line {
+            fill: none;
+            stroke: #333;
+            stroke-width: 2;
+        }
+
+        .area-above {
+            fill: #7cb342;
+        }
+
+        .area-below {
+            fill: #e53935;
+        }
+
+        .data-point {
+            fill: #333;
+        }
+
+        .background-area {
+            fill: #e8e8e8;
+        }
+    </style>
+</head>
+<body>
+    <div class="chart-container">
+        <div class="chart-title">Return on ad spend</div>
+        <div class="chart-wrapper">
+            <span class="y-label" style="top: 200px;">AC</span>
+            <svg id="chart" width="1300" height="500"></svg>
+        </div>
+    </div>
+
+    <script>
+        const data = [
+            { month: 'Aug', year: '2024', value: 1.1 },
+            { month: 'Sep', year: '', value: 1.3 },
+            { month: 'Oct', year: '', value: 1.0 },
+            { month: 'Nov', year: '', value: 1.1 },
+            { month: 'Dec', year: '', value: 0.9 },
+            { month: 'Jan', year: '', value: 1.7 },
+            { month: 'Feb', year: '', value: 1.2 },
+            { month: 'Mar', year: '', value: 1.4 },
+            { month: 'Apr', year: '', value: 0.8 },
+            { month: 'May', year: '', value: 1.2 },
+            { month: 'Jun', year: '', value: 1.0 },
+            { month: 'Jul', year: '', value: 1.2 },
+            { month: 'Aug', year: '', value: 1.0 }
+        ];
+
+        const svg = document.getElementById('chart');
+        const width = 1300;
+        const height = 500;
+        const padding = { top: 40, right: 50, bottom: 80, left: 50 };
+        const chartWidth = width - padding.left - padding.right;
+        const chartHeight = height - padding.top - padding.bottom;
+
+        const threshold = 1.0;
+        const minValue = 0.5;
+        const maxValue = 2.0;
+
+        function valueToY(value) {
+            return padding.top + chartHeight - ((value - minValue) / (maxValue - minValue)) * chartHeight;
+        }
+
+        function indexToX(index) {
+            return padding.left + (index / (data.length - 1)) * chartWidth;
+        }
+
+        const thresholdY = valueToY(threshold);
+
+        // Background gray area (below threshold line to bottom)
+        const bgPath = `M ${padding.left} ${thresholdY}
+                        L ${padding.left + chartWidth} ${thresholdY}
+                        L ${padding.left + chartWidth} ${padding.top + chartHeight}
+                        L ${padding.left} ${padding.top + chartHeight} Z`;
+
+        const bgArea = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        bgArea.setAttribute('d', bgPath);
+        bgArea.setAttribute('class', 'background-area');
+        svg.appendChild(bgArea);
+
+        // Create areas above and below threshold
+        function createAreas() {
+            let abovePath = '';
+            let belowPath = '';
+
+            for (let i = 0; i < data.length - 1; i++) {
+                const x1 = indexToX(i);
+                const x2 = indexToX(i + 1);
+                const y1 = valueToY(data[i].value);
+                const y2 = valueToY(data[i + 1].value);
+                const v1 = data[i].value;
+                const v2 = data[i + 1].value;
+
+                // Check if segment crosses threshold
+                if ((v1 >= threshold && v2 >= threshold)) {
+                    // Both above threshold - green area
+                    const areaPath = `M ${x1} ${thresholdY} L ${x1} ${y1} L ${x2} ${y2} L ${x2} ${thresholdY} Z`;
+                    const area = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    area.setAttribute('d', areaPath);
+                    area.setAttribute('class', 'area-above');
+                    svg.appendChild(area);
+                } else if ((v1 <= threshold && v2 <= threshold)) {
+                    // Both below threshold - red area
+                    const areaPath = `M ${x1} ${thresholdY} L ${x1} ${y1} L ${x2} ${y2} L ${x2} ${thresholdY} Z`;
+                    const area = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    area.setAttribute('d', areaPath);
+                    area.setAttribute('class', 'area-below');
+                    svg.appendChild(area);
+                } else {
+                    // Crosses threshold - need to split
+                    const ratio = (threshold - v1) / (v2 - v1);
+                    const crossX = x1 + ratio * (x2 - x1);
+
+                    if (v1 > threshold) {
+                        // Start above, end below
+                        const aboveAreaPath = `M ${x1} ${thresholdY} L ${x1} ${y1} L ${crossX} ${thresholdY} Z`;
+                        const aboveArea = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                        aboveArea.setAttribute('d', aboveAreaPath);
+                        aboveArea.setAttribute('class', 'area-above');
+                        svg.appendChild(aboveArea);
+
+                        const belowAreaPath = `M ${crossX} ${thresholdY} L ${x2} ${y2} L ${x2} ${thresholdY} Z`;
+                        const belowArea = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                        belowArea.setAttribute('d', belowAreaPath);
+                        belowArea.setAttribute('class', 'area-below');
+                        svg.appendChild(belowArea);
+                    } else {
+                        // Start below, end above
+                        const belowAreaPath = `M ${x1} ${thresholdY} L ${x1} ${y1} L ${crossX} ${thresholdY} Z`;
+                        const belowArea = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                        belowArea.setAttribute('d', belowAreaPath);
+                        belowArea.setAttribute('class', 'area-below');
+                        svg.appendChild(belowArea);
+
+                        const aboveAreaPath = `M ${crossX} ${thresholdY} L ${x2} ${y2} L ${x2} ${thresholdY} Z`;
+                        const aboveArea = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                        aboveArea.setAttribute('d', aboveAreaPath);
+                        aboveArea.setAttribute('class', 'area-above');
+                        svg.appendChild(aboveArea);
+                    }
+                }
+            }
+        }
+
+        createAreas();
+
+        // Draw threshold line
+        const thresholdLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        thresholdLine.setAttribute('x1', padding.left);
+        thresholdLine.setAttribute('y1', thresholdY);
+        thresholdLine.setAttribute('x2', padding.left + chartWidth);
+        thresholdLine.setAttribute('y2', thresholdY);
+        thresholdLine.setAttribute('class', 'threshold-line');
+        svg.appendChild(thresholdLine);
+
+        // Draw vertical line at start
+        const vertLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        vertLine.setAttribute('x1', padding.left);
+        vertLine.setAttribute('y1', padding.top);
+        vertLine.setAttribute('x2', padding.left);
+        vertLine.setAttribute('y2', padding.top + chartHeight);
+        vertLine.setAttribute('stroke', '#ccc');
+        vertLine.setAttribute('stroke-width', '1');
+        svg.appendChild(vertLine);
+
+        // Draw data line
+        let linePath = `M ${indexToX(0)} ${valueToY(data[0].value)}`;
+        for (let i = 1; i < data.length; i++) {
+            linePath += ` L ${indexToX(i)} ${valueToY(data[i].value)}`;
+        }
+
+        const dataLine = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        dataLine.setAttribute('d', linePath);
+        dataLine.setAttribute('class', 'data-line');
+        svg.appendChild(dataLine);
+
+        // Draw data points and labels
+        data.forEach((point, index) => {
+            const x = indexToX(index);
+            const y = valueToY(point.value);
+
+            // Data point
+            const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            circle.setAttribute('cx', x);
+            circle.setAttribute('cy', y);
+            circle.setAttribute('r', 5);
+            circle.setAttribute('class', 'data-point');
+            svg.appendChild(circle);
+
+            // Value label
+            const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            label.setAttribute('x', x);
+            label.setAttribute('y', y - 15);
+            label.setAttribute('class', 'data-label');
+            label.textContent = point.value.toFixed(1).replace('.', ',');
+            svg.appendChild(label);
+
+            // X-axis label
+            const xLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            xLabel.setAttribute('x', x);
+            xLabel.setAttribute('y', padding.top + chartHeight + 40);
+            xLabel.setAttribute('class', 'x-label');
+            xLabel.textContent = point.month;
+            svg.appendChild(xLabel);
+
+            // Year label for first point
+            if (index === 0) {
+                const yearLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                yearLabel.setAttribute('x', x);
+                yearLabel.setAttribute('y', padding.top + chartHeight + 60);
+                yearLabel.setAttribute('class', 'x-label');
+                yearLabel.textContent = '2024';
+                svg.appendChild(yearLabel);
+            }
+        });
+
+        // Arrow at the end
+        const arrowX = padding.left + chartWidth + 20;
+        const arrowY = thresholdY;
+        const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        arrow.setAttribute('d', `M ${arrowX - 10} ${arrowY - 8} L ${arrowX} ${arrowY} L ${arrowX - 10} ${arrowY + 8}`);
+        arrow.setAttribute('fill', 'none');
+        arrow.setAttribute('stroke', '#666');
+        arrow.setAttribute('stroke-width', '2');
+        svg.appendChild(arrow);
+    </script>
+</body>
+</html>
