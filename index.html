@@ -1,300 +1,251 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Return on Ad Spend Chart</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            background-color: #fff;
-            padding: 40px;
-        }
-
-        .chart-container {
-            width: 100%;
-            max-width: 1400px;
-            margin: 0 auto;
-        }
-
-        .chart-title {
-            font-size: 16px;
-            font-weight: normal;
-            color: #333;
-            margin-bottom: 20px;
-        }
-
-        .chart-wrapper {
-            position: relative;
-            width: 100%;
-        }
-
-        .y-label {
-            position: absolute;
-            left: 0;
-            font-size: 14px;
-            color: #333;
-        }
-
-        svg {
-            display: block;
-            overflow: visible;
-        }
-
-        .data-label {
-            font-size: 14px;
-            fill: #333;
-            text-anchor: middle;
-        }
-
-        .x-label {
-            font-size: 14px;
-            fill: #666;
-            text-anchor: middle;
-        }
-
-        .grid-line {
-            stroke: #e0e0e0;
-            stroke-width: 1;
-        }
-
-        .threshold-line {
-            stroke: #333;
-            stroke-width: 1;
-        }
-
-        .data-line {
-            fill: none;
-            stroke: #333;
-            stroke-width: 2;
-        }
-
-        .area-above {
-            fill: #7cb342;
-        }
-
-        .area-below {
-            fill: #e53935;
-        }
-
-        .data-point {
-            fill: #333;
-        }
-
-        .background-area {
-            fill: #e8e8e8;
-        }
-    </style>
+    <title>Numerika - Gestion des Attestations</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 <body>
-    <div class="chart-container">
-        <div class="chart-title">Return on ad spend</div>
-        <div class="chart-wrapper">
-            <span class="y-label" style="top: 200px;">AC</span>
-            <svg id="chart" width="1300" height="500"></svg>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-inner">
+            <div class="logo">
+                <div class="logo-icon">N</div>
+                <span class="logo-text">Numerika <span class="logo-sub">Attestations</span></span>
+            </div>
+            <nav class="nav">
+                <a href="#" class="nav-link active" data-view="dashboard">Tableau de bord</a>
+                <a href="#" class="nav-link" data-view="create">Nouvelle attestation</a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main">
+
+        <!-- Dashboard View -->
+        <section id="view-dashboard" class="view active">
+            <div class="view-header">
+                <div>
+                    <h1>Tableau de bord</h1>
+                    <p class="subtitle">Gérez vos attestations de formation</p>
+                </div>
+                <button class="btn btn-primary" onclick="App.showView('create')">
+                    + Nouvelle attestation
+                </button>
+            </div>
+
+            <!-- Stats Cards -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number" id="stat-total">0</div>
+                    <div class="stat-label">Total</div>
+                </div>
+                <div class="stat-card stat-draft">
+                    <div class="stat-number" id="stat-brouillon">0</div>
+                    <div class="stat-label">Brouillons</div>
+                </div>
+                <div class="stat-card stat-valid">
+                    <div class="stat-number" id="stat-validee">0</div>
+                    <div class="stat-label">Validées</div>
+                </div>
+                <div class="stat-card stat-sent">
+                    <div class="stat-number" id="stat-envoyee">0</div>
+                    <div class="stat-label">Envoyées</div>
+                </div>
+            </div>
+
+            <!-- Filter Bar -->
+            <div class="filter-bar">
+                <input type="text" id="search-input" class="input search-input" placeholder="Rechercher par nom, formation...">
+                <select id="filter-status" class="input filter-select">
+                    <option value="">Tous les statuts</option>
+                    <option value="brouillon">Brouillon</option>
+                    <option value="validee">Validée</option>
+                    <option value="exportee">Exportée</option>
+                    <option value="envoyee">Envoyée</option>
+                </select>
+            </div>
+
+            <!-- Attestations Table -->
+            <div class="table-container">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>N° Attestation</th>
+                            <th>Apprenant</th>
+                            <th>Formation</th>
+                            <th>Date</th>
+                            <th>Statut</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="attestations-table-body">
+                        <tr class="empty-row">
+                            <td colspan="6">Aucune attestation. Cliquez sur "Nouvelle attestation" pour commencer.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Create/Edit View -->
+        <section id="view-create" class="view">
+            <div class="view-header">
+                <div>
+                    <h1 id="form-title">Nouvelle attestation</h1>
+                    <p class="subtitle">Remplissez les informations de l'attestation</p>
+                </div>
+                <button class="btn btn-secondary" onclick="App.showView('dashboard')">
+                    Retour au tableau de bord
+                </button>
+            </div>
+
+            <form id="attestation-form" class="form-grid">
+                <input type="hidden" id="form-id">
+
+                <!-- Section: Informations de l'attestation -->
+                <div class="form-section">
+                    <h2 class="form-section-title">Informations de l'attestation</h2>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="form-numero">Numéro d'attestation *</label>
+                            <input type="text" id="form-numero" class="input" required placeholder="Ex: NUM-2026-001">
+                        </div>
+                        <div class="form-group">
+                            <label for="form-date-creation">Date de création *</label>
+                            <input type="date" id="form-date-creation" class="input" required>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section: Apprenant -->
+                <div class="form-section">
+                    <h2 class="form-section-title">Apprenant</h2>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="form-nom">Nom *</label>
+                            <input type="text" id="form-nom" class="input" required placeholder="Nom de famille">
+                        </div>
+                        <div class="form-group">
+                            <label for="form-prenom">Prénom *</label>
+                            <input type="text" id="form-prenom" class="input" required placeholder="Prénom">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="form-email-apprenant">Email de l'apprenant</label>
+                            <input type="email" id="form-email-apprenant" class="input" placeholder="email@exemple.com">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section: Formation -->
+                <div class="form-section">
+                    <h2 class="form-section-title">Formation</h2>
+                    <div class="form-row">
+                        <div class="form-group full-width">
+                            <label for="form-intitule">Intitulé de la formation *</label>
+                            <input type="text" id="form-intitule" class="input" required placeholder="Ex: Développement Web Full Stack">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="form-date-debut">Date de début *</label>
+                            <input type="date" id="form-date-debut" class="input" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="form-date-fin">Date de fin *</label>
+                            <input type="date" id="form-date-fin" class="input" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="form-duree">Durée (en heures) *</label>
+                            <input type="number" id="form-duree" class="input" required placeholder="Ex: 35" min="1">
+                        </div>
+                        <div class="form-group">
+                            <label for="form-lieu">Lieu de formation</label>
+                            <input type="text" id="form-lieu" class="input" placeholder="Ex: Paris, en ligne...">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="form-formateur">Formateur</label>
+                            <input type="text" id="form-formateur" class="input" placeholder="Nom du formateur">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="App.showView('dashboard')">Annuler</button>
+                    <button type="submit" class="btn btn-primary">Enregistrer</button>
+                    <button type="button" class="btn btn-accent" onclick="App.saveAndPreview()">Enregistrer et prévisualiser</button>
+                </div>
+            </form>
+        </section>
+
+        <!-- Preview View -->
+        <section id="view-preview" class="view">
+            <div class="view-header">
+                <div>
+                    <h1>Prévisualisation</h1>
+                    <p class="subtitle">Vérifiez l'attestation avant exportation</p>
+                </div>
+                <div class="view-header-actions">
+                    <button class="btn btn-secondary" onclick="App.showView('dashboard')">Retour</button>
+                    <button class="btn btn-secondary" onclick="App.editCurrent()">Modifier</button>
+                    <button class="btn btn-primary" onclick="App.validateAttestation()">Valider</button>
+                    <button class="btn btn-accent" onclick="PDFGenerator.exportPDF()">Exporter PDF</button>
+                    <button class="btn btn-success" onclick="EmailService.showSendDialog()">Envoyer par email</button>
+                </div>
+            </div>
+
+            <div class="preview-container">
+                <div id="attestation-preview" class="attestation-document">
+                    <!-- Filled dynamically -->
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Email Dialog Modal -->
+    <div id="email-modal" class="modal" style="display:none;">
+        <div class="modal-overlay" onclick="EmailService.closeDialog()"></div>
+        <div class="modal-content">
+            <h2>Envoyer l'attestation par email</h2>
+            <form id="email-form" onsubmit="EmailService.send(event)">
+                <div class="form-group">
+                    <label for="email-to">Email du destinataire *</label>
+                    <input type="email" id="email-to" class="input" required placeholder="responsable@entreprise.com">
+                </div>
+                <div class="form-group">
+                    <label for="email-subject">Objet</label>
+                    <input type="text" id="email-subject" class="input" placeholder="Attestation de formation">
+                </div>
+                <div class="form-group">
+                    <label for="email-message">Message</label>
+                    <textarea id="email-message" class="input textarea" rows="5" placeholder="Bonjour, veuillez trouver ci-joint l'attestation de formation..."></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="EmailService.closeDialog()">Annuler</button>
+                    <button type="submit" class="btn btn-success">Envoyer</button>
+                </div>
+            </form>
         </div>
     </div>
 
-    <script>
-        const data = [
-            { month: 'Aug', year: '2024', value: 1.1 },
-            { month: 'Sep', year: '', value: 1.3 },
-            { month: 'Oct', year: '', value: 1.0 },
-            { month: 'Nov', year: '', value: 1.1 },
-            { month: 'Dec', year: '', value: 0.9 },
-            { month: 'Jan', year: '', value: 1.7 },
-            { month: 'Feb', year: '', value: 1.2 },
-            { month: 'Mar', year: '', value: 1.4 },
-            { month: 'Apr', year: '', value: 0.8 },
-            { month: 'May', year: '', value: 1.2 },
-            { month: 'Jun', year: '', value: 1.0 },
-            { month: 'Jul', year: '', value: 1.2 },
-            { month: 'Aug', year: '', value: 1.0 }
-        ];
+    <!-- Toast Notifications -->
+    <div id="toast-container" class="toast-container"></div>
 
-        const svg = document.getElementById('chart');
-        const width = 1300;
-        const height = 500;
-        const padding = { top: 40, right: 50, bottom: 80, left: 50 };
-        const chartWidth = width - padding.left - padding.right;
-        const chartHeight = height - padding.top - padding.bottom;
-
-        const threshold = 1.0;
-        const minValue = 0.5;
-        const maxValue = 2.0;
-
-        function valueToY(value) {
-            return padding.top + chartHeight - ((value - minValue) / (maxValue - minValue)) * chartHeight;
-        }
-
-        function indexToX(index) {
-            return padding.left + (index / (data.length - 1)) * chartWidth;
-        }
-
-        const thresholdY = valueToY(threshold);
-
-        // Background gray area (below threshold line to bottom)
-        const bgPath = `M ${padding.left} ${thresholdY}
-                        L ${padding.left + chartWidth} ${thresholdY}
-                        L ${padding.left + chartWidth} ${padding.top + chartHeight}
-                        L ${padding.left} ${padding.top + chartHeight} Z`;
-
-        const bgArea = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        bgArea.setAttribute('d', bgPath);
-        bgArea.setAttribute('class', 'background-area');
-        svg.appendChild(bgArea);
-
-        // Create areas above and below threshold
-        function createAreas() {
-            let abovePath = '';
-            let belowPath = '';
-
-            for (let i = 0; i < data.length - 1; i++) {
-                const x1 = indexToX(i);
-                const x2 = indexToX(i + 1);
-                const y1 = valueToY(data[i].value);
-                const y2 = valueToY(data[i + 1].value);
-                const v1 = data[i].value;
-                const v2 = data[i + 1].value;
-
-                // Check if segment crosses threshold
-                if ((v1 >= threshold && v2 >= threshold)) {
-                    // Both above threshold - green area
-                    const areaPath = `M ${x1} ${thresholdY} L ${x1} ${y1} L ${x2} ${y2} L ${x2} ${thresholdY} Z`;
-                    const area = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                    area.setAttribute('d', areaPath);
-                    area.setAttribute('class', 'area-above');
-                    svg.appendChild(area);
-                } else if ((v1 <= threshold && v2 <= threshold)) {
-                    // Both below threshold - red area
-                    const areaPath = `M ${x1} ${thresholdY} L ${x1} ${y1} L ${x2} ${y2} L ${x2} ${thresholdY} Z`;
-                    const area = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                    area.setAttribute('d', areaPath);
-                    area.setAttribute('class', 'area-below');
-                    svg.appendChild(area);
-                } else {
-                    // Crosses threshold - need to split
-                    const ratio = (threshold - v1) / (v2 - v1);
-                    const crossX = x1 + ratio * (x2 - x1);
-
-                    if (v1 > threshold) {
-                        // Start above, end below
-                        const aboveAreaPath = `M ${x1} ${thresholdY} L ${x1} ${y1} L ${crossX} ${thresholdY} Z`;
-                        const aboveArea = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                        aboveArea.setAttribute('d', aboveAreaPath);
-                        aboveArea.setAttribute('class', 'area-above');
-                        svg.appendChild(aboveArea);
-
-                        const belowAreaPath = `M ${crossX} ${thresholdY} L ${x2} ${y2} L ${x2} ${thresholdY} Z`;
-                        const belowArea = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                        belowArea.setAttribute('d', belowAreaPath);
-                        belowArea.setAttribute('class', 'area-below');
-                        svg.appendChild(belowArea);
-                    } else {
-                        // Start below, end above
-                        const belowAreaPath = `M ${x1} ${thresholdY} L ${x1} ${y1} L ${crossX} ${thresholdY} Z`;
-                        const belowArea = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                        belowArea.setAttribute('d', belowAreaPath);
-                        belowArea.setAttribute('class', 'area-below');
-                        svg.appendChild(belowArea);
-
-                        const aboveAreaPath = `M ${crossX} ${thresholdY} L ${x2} ${y2} L ${x2} ${thresholdY} Z`;
-                        const aboveArea = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                        aboveArea.setAttribute('d', aboveAreaPath);
-                        aboveArea.setAttribute('class', 'area-above');
-                        svg.appendChild(aboveArea);
-                    }
-                }
-            }
-        }
-
-        createAreas();
-
-        // Draw threshold line
-        const thresholdLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        thresholdLine.setAttribute('x1', padding.left);
-        thresholdLine.setAttribute('y1', thresholdY);
-        thresholdLine.setAttribute('x2', padding.left + chartWidth);
-        thresholdLine.setAttribute('y2', thresholdY);
-        thresholdLine.setAttribute('class', 'threshold-line');
-        svg.appendChild(thresholdLine);
-
-        // Draw vertical line at start
-        const vertLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        vertLine.setAttribute('x1', padding.left);
-        vertLine.setAttribute('y1', padding.top);
-        vertLine.setAttribute('x2', padding.left);
-        vertLine.setAttribute('y2', padding.top + chartHeight);
-        vertLine.setAttribute('stroke', '#ccc');
-        vertLine.setAttribute('stroke-width', '1');
-        svg.appendChild(vertLine);
-
-        // Draw data line
-        let linePath = `M ${indexToX(0)} ${valueToY(data[0].value)}`;
-        for (let i = 1; i < data.length; i++) {
-            linePath += ` L ${indexToX(i)} ${valueToY(data[i].value)}`;
-        }
-
-        const dataLine = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        dataLine.setAttribute('d', linePath);
-        dataLine.setAttribute('class', 'data-line');
-        svg.appendChild(dataLine);
-
-        // Draw data points and labels
-        data.forEach((point, index) => {
-            const x = indexToX(index);
-            const y = valueToY(point.value);
-
-            // Data point
-            const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-            circle.setAttribute('cx', x);
-            circle.setAttribute('cy', y);
-            circle.setAttribute('r', 5);
-            circle.setAttribute('class', 'data-point');
-            svg.appendChild(circle);
-
-            // Value label
-            const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-            label.setAttribute('x', x);
-            label.setAttribute('y', y - 15);
-            label.setAttribute('class', 'data-label');
-            label.textContent = point.value.toFixed(1).replace('.', ',');
-            svg.appendChild(label);
-
-            // X-axis label
-            const xLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-            xLabel.setAttribute('x', x);
-            xLabel.setAttribute('y', padding.top + chartHeight + 40);
-            xLabel.setAttribute('class', 'x-label');
-            xLabel.textContent = point.month;
-            svg.appendChild(xLabel);
-
-            // Year label for first point
-            if (index === 0) {
-                const yearLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                yearLabel.setAttribute('x', x);
-                yearLabel.setAttribute('y', padding.top + chartHeight + 60);
-                yearLabel.setAttribute('class', 'x-label');
-                yearLabel.textContent = '2024';
-                svg.appendChild(yearLabel);
-            }
-        });
-
-        // Arrow at the end
-        const arrowX = padding.left + chartWidth + 20;
-        const arrowY = thresholdY;
-        const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        arrow.setAttribute('d', `M ${arrowX - 10} ${arrowY - 8} L ${arrowX} ${arrowY} L ${arrowX - 10} ${arrowY + 8}`);
-        arrow.setAttribute('fill', 'none');
-        arrow.setAttribute('stroke', '#666');
-        arrow.setAttribute('stroke-width', '2');
-        svg.appendChild(arrow);
-    </script>
+    <!-- Scripts -->
+    <script src="js/store.js"></script>
+    <script src="js/pdf.js"></script>
+    <script src="js/email.js"></script>
+    <script src="js/app.js"></script>
 </body>
 </html>
