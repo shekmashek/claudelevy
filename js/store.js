@@ -3,18 +3,32 @@
  */
 const Store = (() => {
     const STORAGE_KEY = 'numerika_attestations';
+    const SETTINGS_KEY = 'numerika_settings';
+
+    const DEFAULT_SETTINGS = {
+        companyName: 'Numerika',
+        companySubtitle: 'Organisme de formation professionnelle',
+        companyAddress: '',
+        companySiret: '',
+        companyNda: '',
+        emailDefault: '',
+        numeroPrefix: 'NUM'
+    };
 
     function generateId() {
         return 'att_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
     }
 
     function generateNumero() {
+        const settings = getSettings();
+        const prefix = settings.numeroPrefix || 'NUM';
         const year = new Date().getFullYear();
         const all = getAll();
         const count = all.length + 1;
-        return `NUM-${year}-${String(count).padStart(3, '0')}`;
+        return `${prefix}-${year}-${String(count).padStart(3, '0')}`;
     }
 
+    // ===== Attestations =====
     function getAll() {
         const data = localStorage.getItem(STORAGE_KEY);
         return data ? JSON.parse(data) : [];
@@ -100,6 +114,24 @@ const Store = (() => {
         saveAll(attestations);
     }
 
+    function duplicate(id) {
+        const source = getById(id);
+        if (!source) return null;
+
+        const attestations = getAll();
+        const newAttestation = {
+            ...JSON.parse(JSON.stringify(source)),
+            id: generateId(),
+            numero: generateNumero(),
+            statut: 'brouillon',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        };
+        attestations.push(newAttestation);
+        saveAll(attestations);
+        return newAttestation;
+    }
+
     function search(query, statusFilter) {
         let results = getAll();
 
@@ -131,6 +163,51 @@ const Store = (() => {
         };
     }
 
+    // ===== Settings =====
+    function getSettings() {
+        const data = localStorage.getItem(SETTINGS_KEY);
+        return data ? { ...DEFAULT_SETTINGS, ...JSON.parse(data) } : { ...DEFAULT_SETTINGS };
+    }
+
+    function saveSettings(settings) {
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    }
+
+    // ===== Import / Export =====
+    function exportJSON() {
+        return JSON.stringify({
+            version: 1,
+            exportDate: new Date().toISOString(),
+            settings: getSettings(),
+            attestations: getAll()
+        }, null, 2);
+    }
+
+    function importJSON(jsonString) {
+        const data = JSON.parse(jsonString);
+        if (!data.attestations || !Array.isArray(data.attestations)) {
+            throw new Error('Format de fichier invalide');
+        }
+
+        if (data.settings) {
+            saveSettings(data.settings);
+        }
+
+        const existing = getAll();
+        const existingIds = new Set(existing.map(a => a.id));
+        let importCount = 0;
+
+        data.attestations.forEach(a => {
+            if (!existingIds.has(a.id)) {
+                existing.push(a);
+                importCount++;
+            }
+        });
+
+        saveAll(existing);
+        return importCount;
+    }
+
     return {
         generateNumero,
         getAll,
@@ -139,7 +216,12 @@ const Store = (() => {
         update,
         updateStatus,
         remove,
+        duplicate,
         search,
-        getStats
+        getStats,
+        getSettings,
+        saveSettings,
+        exportJSON,
+        importJSON
     };
 })();

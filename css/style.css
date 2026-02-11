@@ -714,6 +714,85 @@ body {
     }
 }
 
+/* ===== Batch Actions Bar ===== */
+.batch-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--primary-light);
+    border: 1px solid var(--primary);
+    border-radius: var(--radius);
+    padding: 10px 16px;
+    margin-bottom: 12px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--primary);
+}
+
+.batch-actions {
+    display: flex;
+    gap: 8px;
+}
+
+/* ===== Checkbox Cells ===== */
+.th-check,
+.td-check {
+    width: 40px;
+    text-align: center;
+}
+
+.th-check input,
+.td-check input {
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+    accent-color: var(--primary);
+}
+
+/* ===== Preview Navigation ===== */
+.preview-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-bottom: 16px;
+    font-size: 14px;
+    color: var(--gray-600);
+}
+
+/* ===== Import Button ===== */
+.import-btn {
+    cursor: pointer;
+}
+
+/* ===== Print Styles ===== */
+@media print {
+    .header,
+    .view-header,
+    .view-header-actions,
+    .preview-nav,
+    .toast-container,
+    .modal {
+        display: none !important;
+    }
+
+    .main {
+        padding: 0;
+        max-width: none;
+    }
+
+    .preview-container {
+        padding: 0;
+    }
+
+    .attestation-document {
+        box-shadow: none;
+        border: none;
+        width: 100%;
+        padding: 20px 30px;
+    }
+}
+
 /* ===== Responsive ===== */
 @media (max-width: 768px) {
     .header-inner {

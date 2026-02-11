@@ -3,12 +3,16 @@
  */
 const App = (() => {
     let currentAttestationId = null;
+    let selectedIds = new Set();
+    let previewList = [];
+    let previewIndex = 0;
 
     // ===== Initialization =====
     function init() {
         setupNavigation();
         setupForm();
         setupFilters();
+        loadSettings();
         refreshDashboard();
 
         // Set default date
@@ -27,26 +31,25 @@ const App = (() => {
     }
 
     function showView(viewName) {
-        // Hide all views
         document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
 
-        // Show target view
         const target = document.getElementById(`view-${viewName}`);
         if (target) target.classList.add('active');
 
-        // Update nav links
         document.querySelectorAll('.nav-link').forEach(link => {
             link.classList.toggle('active', link.dataset.view === viewName);
         });
 
-        // View-specific setup
         if (viewName === 'dashboard') {
             refreshDashboard();
+            selectedIds.clear();
+            updateBatchBar();
         } else if (viewName === 'create') {
-            // Reset form if no editing
             if (!currentAttestationId) {
                 resetForm();
             }
+        } else if (viewName === 'settings') {
+            loadSettings();
         }
     }
 
@@ -133,11 +136,8 @@ const App = (() => {
 
     // ===== Dashboard =====
     function setupFilters() {
-        const searchInput = document.getElementById('search-input');
-        const filterSelect = document.getElementById('filter-status');
-
-        searchInput.addEventListener('input', () => refreshTable());
-        filterSelect.addEventListener('change', () => refreshTable());
+        document.getElementById('search-input').addEventListener('input', () => refreshTable());
+        document.getElementById('filter-status').addEventListener('change', () => refreshTable());
     }
 
     function refreshDashboard() {
@@ -163,13 +163,18 @@ const App = (() => {
         if (attestations.length === 0) {
             tbody.innerHTML = `
                 <tr class="empty-row">
-                    <td colspan="6">Aucune attestation trouvée.</td>
+                    <td colspan="7">Aucune attestation trouvée.</td>
                 </tr>`;
             return;
         }
 
         tbody.innerHTML = attestations.map(a => `
             <tr>
+                <td class="td-check">
+                    <input type="checkbox" class="row-check" data-id="${a.id}"
+                           ${selectedIds.has(a.id) ? 'checked' : ''}
+                           onchange="App.toggleSelect('${a.id}', this.checked)">
+                </td>
                 <td><strong>${escapeHtml(a.numero)}</strong></td>
                 <td>${escapeHtml(a.apprenant.prenom)} ${escapeHtml(a.apprenant.nom)}</td>
                 <td>${escapeHtml(a.formation.intitule)}</td>
@@ -178,10 +183,95 @@ const App = (() => {
                 <td class="actions-cell">
                     <button class="btn btn-sm btn-secondary" onclick="App.previewAttestation('${a.id}')">Voir</button>
                     <button class="btn btn-sm btn-secondary" onclick="App.editAttestation('${a.id}')">Modifier</button>
+                    <button class="btn btn-sm btn-secondary" onclick="App.duplicateFromList('${a.id}')">Dupliquer</button>
                     <button class="btn btn-sm btn-danger" onclick="App.deleteAttestation('${a.id}')">Supprimer</button>
                 </td>
             </tr>
         `).join('');
+    }
+
+    // ===== Selection & Batch =====
+    function toggleSelect(id, checked) {
+        if (checked) {
+            selectedIds.add(id);
+        } else {
+            selectedIds.delete(id);
+        }
+        updateBatchBar();
+    }
+
+    function toggleSelectAll(checked) {
+        const checkboxes = document.querySelectorAll('.row-check');
+        checkboxes.forEach(cb => {
+            cb.checked = checked;
+            if (checked) {
+                selectedIds.add(cb.dataset.id);
+            } else {
+                selectedIds.delete(cb.dataset.id);
+            }
+        });
+        updateBatchBar();
+    }
+
+    function updateBatchBar() {
+        const bar = document.getElementById('batch-bar');
+        const count = selectedIds.size;
+        if (count > 0) {
+            bar.style.display = 'flex';
+            document.getElementById('batch-count').textContent = `${count} sélectionnée(s)`;
+        } else {
+            bar.style.display = 'none';
+        }
+    }
+
+    function batchValidate() {
+        let count = 0;
+        selectedIds.forEach(id => {
+            const a = Store.getById(id);
+            if (a && a.statut === 'brouillon') {
+                Store.updateStatus(id, 'validee');
+                count++;
+            }
+        });
+        selectedIds.clear();
+        updateBatchBar();
+        refreshDashboard();
+        toast(`${count} attestation(s) validée(s)`, 'success');
+    }
+
+    async function batchExportPDF() {
+        const ids = Array.from(selectedIds);
+        if (ids.length === 0) return;
+
+        toast(`Export de ${ids.length} attestation(s) en cours...`, 'info');
+
+        for (const id of ids) {
+            const attestation = Store.getById(id);
+            if (!attestation) continue;
+
+            currentAttestationId = id;
+            renderPreview(attestation);
+
+            // Wait for rendering
+            await new Promise(r => setTimeout(r, 300));
+            await PDFGenerator.exportSinglePDF(attestation);
+        }
+
+        selectedIds.clear();
+        updateBatchBar();
+        refreshDashboard();
+        toast('Export terminé', 'success');
+    }
+
+    function batchDelete() {
+        const count = selectedIds.size;
+        if (!confirm(`Supprimer ${count} attestation(s) ?`)) return;
+
+        selectedIds.forEach(id => Store.remove(id));
+        selectedIds.clear();
+        updateBatchBar();
+        refreshDashboard();
+        toast(`${count} attestation(s) supprimée(s)`, 'success');
     }
 
     // ===== Preview =====
@@ -192,18 +282,50 @@ const App = (() => {
             return;
         }
 
+        // Build the navigation list from current table view
+        const query = document.getElementById('search-input').value;
+        const status = document.getElementById('filter-status').value;
+        previewList = Store.search(query, status);
+        previewIndex = previewList.findIndex(a => a.id === id);
+        if (previewIndex === -1) previewIndex = 0;
+
         currentAttestationId = id;
         renderPreview(attestation);
+        updatePreviewNav();
         showView('preview');
     }
 
+    function navigatePreview(direction) {
+        const newIndex = previewIndex + direction;
+        if (newIndex < 0 || newIndex >= previewList.length) return;
+
+        previewIndex = newIndex;
+        const attestation = previewList[previewIndex];
+        currentAttestationId = attestation.id;
+        renderPreview(attestation);
+        updatePreviewNav();
+    }
+
+    function updatePreviewNav() {
+        const total = previewList.length;
+        document.getElementById('preview-position').textContent = `${previewIndex + 1} / ${total}`;
+        document.getElementById('btn-prev').disabled = previewIndex === 0;
+        document.getElementById('btn-next').disabled = previewIndex >= total - 1;
+    }
+
     function renderPreview(a) {
+        const settings = Store.getSettings();
+        const companyName = settings.companyName || 'Numerika';
+        const companyInitial = companyName.charAt(0).toUpperCase();
+        const companySub = settings.companySubtitle || 'Organisme de formation professionnelle';
+
         const preview = document.getElementById('attestation-preview');
         preview.innerHTML = `
             <div class="attest-header">
-                <div class="attest-logo">N</div>
-                <div class="attest-company-name">NUMERIKA</div>
-                <div class="attest-company-sub">Organisme de formation professionnelle</div>
+                <div class="attest-logo">${escapeHtml(companyInitial)}</div>
+                <div class="attest-company-name">${escapeHtml(companyName.toUpperCase())}</div>
+                <div class="attest-company-sub">${escapeHtml(companySub)}</div>
+                ${settings.companyAddress ? `<div class="attest-company-sub">${escapeHtml(settings.companyAddress)}</div>` : ''}
             </div>
 
             <div class="attest-title">
@@ -213,7 +335,7 @@ const App = (() => {
 
             <div class="attest-body">
                 <div class="attest-certify">
-                    Nous soussignés, Numerika, organisme de formation,<br>
+                    Nous soussignés, ${escapeHtml(companyName)}, organisme de formation,<br>
                     certifions que :
                 </div>
 
@@ -265,7 +387,7 @@ const App = (() => {
             </div>
 
             <div class="attest-watermark">
-                Numerika - Attestation générée le ${new Date().toLocaleDateString('fr-FR')} - ${escapeHtml(a.numero)}
+                ${escapeHtml(companyName)}${settings.companySiret ? ` - SIRET : ${escapeHtml(settings.companySiret)}` : ''}${settings.companyNda ? ` - NDA : ${escapeHtml(settings.companyNda)}` : ''} - ${escapeHtml(a.numero)}
             </div>
         `;
     }
@@ -303,6 +425,25 @@ const App = (() => {
         }
     }
 
+    function duplicateAttestation() {
+        if (!currentAttestationId) return;
+
+        const newAttestation = Store.duplicate(currentAttestationId);
+        if (newAttestation) {
+            toast(`Attestation dupliquée (${newAttestation.numero})`, 'success');
+            currentAttestationId = newAttestation.id;
+            previewAttestation(newAttestation.id);
+        }
+    }
+
+    function duplicateFromList(id) {
+        const newAttestation = Store.duplicate(id);
+        if (newAttestation) {
+            toast(`Attestation dupliquée (${newAttestation.numero})`, 'success');
+            refreshDashboard();
+        }
+    }
+
     function deleteAttestation(id) {
         if (!confirm('Êtes-vous sûr de vouloir supprimer cette attestation ?')) return;
 
@@ -313,6 +454,73 @@ const App = (() => {
 
     function getCurrentId() {
         return currentAttestationId;
+    }
+
+    // ===== Print =====
+    function printPreview() {
+        window.print();
+    }
+
+    // ===== Settings =====
+    function loadSettings() {
+        const settings = Store.getSettings();
+        const el = (id) => document.getElementById(id);
+        if (el('settings-company-name')) el('settings-company-name').value = settings.companyName || '';
+        if (el('settings-company-subtitle')) el('settings-company-subtitle').value = settings.companySubtitle || '';
+        if (el('settings-company-address')) el('settings-company-address').value = settings.companyAddress || '';
+        if (el('settings-company-siret')) el('settings-company-siret').value = settings.companySiret || '';
+        if (el('settings-company-nda')) el('settings-company-nda').value = settings.companyNda || '';
+        if (el('settings-email-default')) el('settings-email-default').value = settings.emailDefault || '';
+        if (el('settings-numero-prefix')) el('settings-numero-prefix').value = settings.numeroPrefix || 'NUM';
+    }
+
+    function saveSettings(event) {
+        event.preventDefault();
+        const settings = {
+            companyName: document.getElementById('settings-company-name').value.trim(),
+            companySubtitle: document.getElementById('settings-company-subtitle').value.trim(),
+            companyAddress: document.getElementById('settings-company-address').value.trim(),
+            companySiret: document.getElementById('settings-company-siret').value.trim(),
+            companyNda: document.getElementById('settings-company-nda').value.trim(),
+            emailDefault: document.getElementById('settings-email-default').value.trim(),
+            numeroPrefix: document.getElementById('settings-numero-prefix').value.trim() || 'NUM'
+        };
+        Store.saveSettings(settings);
+        toast('Paramètres enregistrés', 'success');
+    }
+
+    // ===== Import / Export =====
+    function exportData() {
+        const json = Store.exportJSON();
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `numerika_attestations_${new Date().toISOString().split('T')[0]}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast('Données exportées', 'success');
+    }
+
+    function importData(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const count = Store.importJSON(e.target.result);
+                toast(`${count} attestation(s) importée(s)`, 'success');
+                loadSettings();
+                refreshDashboard();
+            } catch (err) {
+                toast('Erreur: ' + err.message, 'error');
+            }
+        };
+        reader.readAsText(file);
+
+        // Reset the file input so the same file can be re-imported
+        event.target.value = '';
     }
 
     // ===== Utilities =====
@@ -359,11 +567,23 @@ const App = (() => {
         showView,
         saveAndPreview,
         previewAttestation,
+        navigatePreview,
         editAttestation,
         editCurrent,
         validateAttestation,
+        duplicateAttestation,
+        duplicateFromList,
         deleteAttestation,
         getCurrentId,
+        printPreview,
+        toggleSelect,
+        toggleSelectAll,
+        batchValidate,
+        batchExportPDF,
+        batchDelete,
+        saveSettings,
+        exportData,
+        importData,
         refreshDashboard,
         toast
     };

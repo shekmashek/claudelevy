@@ -19,6 +19,7 @@
             <nav class="nav">
                 <a href="#" class="nav-link active" data-view="dashboard">Tableau de bord</a>
                 <a href="#" class="nav-link" data-view="create">Nouvelle attestation</a>
+                <a href="#" class="nav-link" data-view="settings">Paramètres</a>
             </nav>
         </div>
     </header>
@@ -33,9 +34,16 @@
                     <h1>Tableau de bord</h1>
                     <p class="subtitle">Gérez vos attestations de formation</p>
                 </div>
-                <button class="btn btn-primary" onclick="App.showView('create')">
-                    + Nouvelle attestation
-                </button>
+                <div class="view-header-actions">
+                    <button class="btn btn-secondary" onclick="App.exportData()">Exporter les données</button>
+                    <label class="btn btn-secondary import-btn">
+                        Importer des données
+                        <input type="file" id="import-file" accept=".json" onchange="App.importData(event)" hidden>
+                    </label>
+                    <button class="btn btn-primary" onclick="App.showView('create')">
+                        + Nouvelle attestation
+                    </button>
+                </div>
             </div>
 
             <!-- Stats Cards -->
@@ -70,11 +78,22 @@
                 </select>
             </div>
 
+            <!-- Batch Actions Bar -->
+            <div id="batch-bar" class="batch-bar" style="display:none;">
+                <span id="batch-count">0 sélectionnée(s)</span>
+                <div class="batch-actions">
+                    <button class="btn btn-sm btn-primary" onclick="App.batchValidate()">Valider</button>
+                    <button class="btn btn-sm btn-accent" onclick="App.batchExportPDF()">Exporter PDF</button>
+                    <button class="btn btn-sm btn-danger" onclick="App.batchDelete()">Supprimer</button>
+                </div>
+            </div>
+
             <!-- Attestations Table -->
             <div class="table-container">
                 <table class="table">
                     <thead>
                         <tr>
+                            <th class="th-check"><input type="checkbox" id="select-all" onchange="App.toggleSelectAll(this.checked)"></th>
                             <th>N° Attestation</th>
                             <th>Apprenant</th>
                             <th>Formation</th>
@@ -85,7 +104,7 @@
                     </thead>
                     <tbody id="attestations-table-body">
                         <tr class="empty-row">
-                            <td colspan="6">Aucune attestation. Cliquez sur "Nouvelle attestation" pour commencer.</td>
+                            <td colspan="7">Aucune attestation. Cliquez sur "Nouvelle attestation" pour commencer.</td>
                         </tr>
                     </tbody>
                 </table>
@@ -199,10 +218,19 @@
                 <div class="view-header-actions">
                     <button class="btn btn-secondary" onclick="App.showView('dashboard')">Retour</button>
                     <button class="btn btn-secondary" onclick="App.editCurrent()">Modifier</button>
+                    <button class="btn btn-secondary" onclick="App.duplicateAttestation()">Dupliquer</button>
                     <button class="btn btn-primary" onclick="App.validateAttestation()">Valider</button>
                     <button class="btn btn-accent" onclick="PDFGenerator.exportPDF()">Exporter PDF</button>
+                    <button class="btn btn-secondary" onclick="App.printPreview()">Imprimer</button>
                     <button class="btn btn-success" onclick="EmailService.showSendDialog()">Envoyer par email</button>
                 </div>
+            </div>
+
+            <!-- Navigation between attestations -->
+            <div class="preview-nav">
+                <button class="btn btn-sm btn-secondary" id="btn-prev" onclick="App.navigatePreview(-1)" disabled>Précédente</button>
+                <span id="preview-position">1 / 1</span>
+                <button class="btn btn-sm btn-secondary" id="btn-next" onclick="App.navigatePreview(1)" disabled>Suivante</button>
             </div>
 
             <div class="preview-container">
@@ -210,6 +238,69 @@
                     <!-- Filled dynamically -->
                 </div>
             </div>
+        </section>
+
+        <!-- Settings View -->
+        <section id="view-settings" class="view">
+            <div class="view-header">
+                <div>
+                    <h1>Paramètres</h1>
+                    <p class="subtitle">Configuration de l'organisme et du modèle d'attestation</p>
+                </div>
+                <button class="btn btn-secondary" onclick="App.showView('dashboard')">
+                    Retour au tableau de bord
+                </button>
+            </div>
+
+            <form id="settings-form" class="form-grid" onsubmit="App.saveSettings(event)">
+                <div class="form-section">
+                    <h2 class="form-section-title">Informations de l'organisme</h2>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="settings-company-name">Nom de l'organisme</label>
+                            <input type="text" id="settings-company-name" class="input" placeholder="Numerika">
+                        </div>
+                        <div class="form-group">
+                            <label for="settings-company-subtitle">Sous-titre</label>
+                            <input type="text" id="settings-company-subtitle" class="input" placeholder="Organisme de formation professionnelle">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group full-width">
+                            <label for="settings-company-address">Adresse</label>
+                            <input type="text" id="settings-company-address" class="input" placeholder="123 Rue de la Formation, 75001 Paris">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="settings-company-siret">SIRET</label>
+                            <input type="text" id="settings-company-siret" class="input" placeholder="123 456 789 00012">
+                        </div>
+                        <div class="form-group">
+                            <label for="settings-company-nda">N° Déclaration d'activité</label>
+                            <input type="text" id="settings-company-nda" class="input" placeholder="11 75 XXXXX 75">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h2 class="form-section-title">Email par défaut</h2>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="settings-email-default">Email du responsable impression</label>
+                            <input type="email" id="settings-email-default" class="input" placeholder="responsable@entreprise.com">
+                        </div>
+                        <div class="form-group">
+                            <label for="settings-numero-prefix">Préfixe numérotation</label>
+                            <input type="text" id="settings-numero-prefix" class="input" placeholder="NUM">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Enregistrer les paramètres</button>
+                </div>
+            </form>
         </section>
     </main>
 

@@ -17,7 +17,12 @@ const EmailService = (() => {
             return;
         }
 
-        // Pre-fill the form
+        const settings = Store.getSettings();
+        const companyName = settings.companyName || 'Numerika';
+
+        // Pre-fill default recipient from settings
+        document.getElementById('email-to').value = settings.emailDefault || '';
+
         document.getElementById('email-subject').value =
             `Attestation de formation - ${attestation.apprenant.prenom} ${attestation.apprenant.nom} - ${attestation.formation.intitule}`;
 
@@ -27,7 +32,7 @@ const EmailService = (() => {
             `- Formation : ${attestation.formation.intitule}\n` +
             `- Numéro : ${attestation.numero}\n` +
             `- Période : du ${formatDate(attestation.formation.dateDebut)} au ${formatDate(attestation.formation.dateFin)}\n\n` +
-            `Merci de bien vouloir procéder à l'impression de cette attestation.\n\nCordialement,\nNumerika`;
+            `Merci de bien vouloir procéder à l'impression de cette attestation.\n\nCordialement,\n${companyName}`;
 
         document.getElementById('email-modal').style.display = 'flex';
     }
@@ -40,7 +45,6 @@ const EmailService = (() => {
         event.preventDefault();
 
         const currentId = App.getCurrentId();
-        const attestation = Store.getById(currentId);
 
         const to = document.getElementById('email-to').value;
         const subject = document.getElementById('email-subject').value;
